@@ -10,14 +10,15 @@
 /// i.e. the Mehler factorization with frequency B in x for each y wavenumber q, with the mask written as
 /// m (x - X_q)^2 = m x^2 + b q x + d q^2, b = tanh(B tau/2), d = tanh(B tau/2)/(2B).  Applied to f:
 ///
-///   1. ft = e^{-iBxy/2} f (on the cylinder rho < rcut, erfc taper)
+///   1. ft = e^{-iBxy/2} f
 ///   2. F_q(x, z) = int dy e^{-iqy} ft(x, y, z)                 (project_out, per q)
 ///   3. Psi_q = sum_tau w g_q(x) * [(N_x K_z) * (g_q(x) F_q)]   (x mask, 2D separable convolution, x mask)
 ///   4. result = e^{iBxy/2} (1/P) sum_q e^{iqy} Psi_q(x, z)     (hartree_product)
 ///
 /// with q_j = 2 pi j/P (y treated as periodic with period P) and a trapezoid rule in ln tau from tmin to
 /// -ln(eps)/(|B|/2 - E) (MagneticKernel::tau_quadrature), [0, tmin] added as tmin f.  Steps 2 and 4 work in the axis order (x, z, y).
-/// Gauge origin r = 0; any orientation of the molecule; the default rcut assumes the nuclei near the z axis.
+/// Gauge origin r = 0; any orientation of the molecule; the default rcut (the y-extent of f and G f) assumes the
+/// nuclei near the z axis.
 /// Port of MagneticGreen (magnetic_green.h on magnetic-fourier) onto magnetic_primitives.h.
 
 #ifndef MADNESS_MRA_MAGNETIC_KERNEL_FT_H__INCLUDED
@@ -37,24 +38,17 @@ public:
         const Tensor<double> cell = FunctionDefaults<3>::get_cell();
         lo_ = cell(0, 0);
         hi_ = cell(0, 1);
-        const double thr = FunctionDefaults<3>::get_thresh();
-        // the phase is stored only on the cylinder rho < rcut (+ erfc taper): f and G f decay as
-        // e^{-|B| rho^2/4} across B, and a full-cell 3D phase refines everywhere (memory); ft lives on
-        // |x|, |y| < rext; window, period and cut-offs: MagneticKernelParameters::set_derived_values
+        // f and G f decay as e^{-|B| rho^2/4} across B: ft lives on |x|, |y| < rext; window, period and
+        // cylinder: MagneticKernelParameters::set_derived_values
         rcut_ = p_.ft_rcut();
         rtaper_ = p_.ft_rtaper();
-        const double rext = rcut_ + 3 * rtaper_;
         period_ = p_.ft_period();
         const double qmax = p_.ft_qmax();
         const long J = long(std::ceil(qmax * period_ / constants::pi / 2));
         for (long j = -J; j <= J; ++j) q_.push_back(2 * constants::pi * j / period_);
 
-        phase_.refinement = magnetic::PhaseRefinement::box_phase;
-        phase_.dphi = p_.ft_dphi();
-        phase_.rext = rext;
-        phase_.tol = 0.1 * thr;
-        phase_.rcut = rcut_;
-        phase_.rtaper = rtaper_;
+        phase_.tolfac = p_.phase_tolfac();
+        phase_.recursive = p_.phase_recursive();
 
         // step 4 uses e^{iqy} windowed to |y| < rcut + 9 rtaper: every term of the q-sum is then local in y
         const double yw = rcut_ + 9 * rtaper_, rt = rtaper_;

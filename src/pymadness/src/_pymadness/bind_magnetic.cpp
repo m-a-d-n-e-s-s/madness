@@ -19,9 +19,6 @@ void bind_magnetic(py::module_& m) {
         .value("symmetric", MagneticGauge::symmetric)
         .value("landau", MagneticGauge::landau);
 
-    py::enum_<magnetic::PhaseRefinement>(m, "PhaseRefinement")
-        .value("poly_error", magnetic::PhaseRefinement::poly_error)
-        .value("box_phase", magnetic::PhaseRefinement::box_phase);
 
     // keyword construction: verbose; any other keyword sets that parameter (user-defined, e.g. origin=[x, y, z],
     // lo=, nbroaden=, ft_qextra=); the derived ones are set by make_magnetic_kernel
@@ -112,17 +109,13 @@ void bind_magnetic(py::module_& m) {
     m.def("magnetic_kernel_names", &magnetic_kernel_names);
 
     m.def("mul_bilinear_phase", [](const complex_function_3d& f, double kappa, double o0, double o1,
-                                   magnetic::PhaseRefinement refinement, double tolfac, bool recursive,
-                                   double dphi, double rext, double tol, double rcut, double rtaper) {
+                                   double tolfac, bool recursive) {
         py::gil_scoped_release release;
         magnetic::BilinearPhase p(kappa, o0, o1);
-        p.refinement = refinement; p.tolfac = tolfac; p.recursive = recursive;
-        p.dphi = dphi; p.rext = rext; p.tol = tol; p.rcut = rcut; p.rtaper = rtaper;
+        p.tolfac = tolfac; p.recursive = recursive;
         return magnetic::mul_bilinear_phase(f, p);
     }, py::arg("f"), py::arg("kappa"), py::arg("o0") = 0.0, py::arg("o1") = 0.0,
-       py::arg("refinement") = magnetic::PhaseRefinement::poly_error, py::arg("tolfac") = 0.1,
-       py::arg("recursive") = true, py::arg("dphi") = 3.0, py::arg("rext") = 1e10, py::arg("tol") = 0.0,
-       py::arg("rcut") = 0.0, py::arg("rtaper") = 0.0,
+       py::arg("tolfac") = 0.1, py::arg("recursive") = true,
        "f e^{i kappa (x0-o0)(x1-o1)} (axes 0, 1), the tree of f refined where the phase is not resolved;\n"
        "untruncated (magnetic_primitives.h)");
 }

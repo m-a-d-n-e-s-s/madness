@@ -203,21 +203,11 @@ std::shared_ptr<SeparatedConvolution<double, NDIM>> gauss_product_operator(World
 // Bilinear phase e^{i kappa (x0-o0)(x1-o1)} on axes 0 and 1
 // =====================================================================================
 
-/// how the tree is refined before the phase is multiplied onto the values
-enum class PhaseRefinement {
-    poly_error,     ///< refine where the best degree-(k-1) fit of the phase misses tolfac*truncate_tol
-                    ///  relative to the box norm (the chain kernels)
-    box_phase       ///< refine boxes within rho < rext where the phase varies by more than dphi and the
-                    ///  coefficient norm exceeds tol (the FT kernel)
-};
-
 struct BilinearPhase {
     double kappa = 0.0, o0 = 0.0, o1 = 0.0;   ///< theta = kappa (x0-o0)(x1-o1)
-    PhaseRefinement refinement = PhaseRefinement::poly_error;
-    double tolfac = 0.1;                      ///< poly_error: tolerance factor
-    bool recursive = true;                    ///< poly_error: one recursive sweep (single process) or passes
-    double dphi = 3.0, rext = 1e10, tol = 0.0;  ///< box_phase
-    double rcut = 0.0, rtaper = 0.0;          ///< taper 0.5 erfc((rho-rcut)/rtaper) of the factor; rcut <= 0: none
+    double tolfac = 0.1;                      ///< refine where the best degree-(k-1) fit of the phase misses
+                                              ///  tolfac*truncate_tol relative to the box norm
+    bool recursive = true;                    ///< one recursive sweep (single process) or passes
 
     BilinearPhase() = default;
     BilinearPhase(double kappa, double o0, double o1) : kappa(kappa), o0(o0), o1(o1) {}
@@ -226,7 +216,7 @@ struct BilinearPhase {
 
 namespace detail {
 
-/// refinement test of PhaseRefinement::poly_error: the best degree-(k-1) approximation of e^{i theta}
+/// refinement test: the best degree-(k-1) approximation of e^{i theta}
 /// with theta varying by 2w over a box has error ~ w^k / (2^(k-1) k!)
 template <typename T, std::size_t NDIM>
 struct PolyErrorRefineOp {
@@ -258,31 +248,10 @@ struct PolyErrorRefineOp {
     template <typename Archive> void serialize(Archive& ar) { ar & kappa & o0 & o1 & tolfac; }
 };
 
-/// refinement test of PhaseRefinement::box_phase
-template <typename T, std::size_t NDIM>
-struct BoxPhaseRefineOp {
-    double kappa = 0, o0 = 0, o1 = 0, rext = 0, dphi = 0, tol = 0;
-
-    template <typename implT, typename nodeT>
-    bool operator()(implT*, const Key<NDIM>& key, const nodeT& t) const {
-        const Tensor<double>& cell = FunctionDefaults<NDIM>::get_cell();
-        const double width = FunctionDefaults<NDIM>::get_cell_width()[0];
-        const double h = width / double(1L << key.level());
-        const double x0 = cell(0, 0) + key.translation()[0] * h - o0, y0 = cell(1, 0) + key.translation()[1] * h - o1;
-        auto nearest = [h](double a) { return (a <= 0.0 && a + h >= 0.0) ? 0.0 : std::min(std::abs(a), std::abs(a + h)); };
-        const double rx = nearest(x0), ry = nearest(y0);
-        if (rx * rx + ry * ry > rext * rext) return false;
-        const double mx = std::max(std::abs(x0), std::abs(x0 + h)), my = std::max(std::abs(y0), std::abs(y0 + h));
-        if (std::abs(kappa) * (mx + my) * h <= dphi) return false;
-        return t.coeff().normf() > tol;
-    }
-    template <typename Archive> void serialize(Archive& ar) { ar & kappa & o0 & o1 & rext & dphi & tol; }
-};
-
-/// values at the quadrature points times [taper(rho)] e^{i theta}
+/// values at the quadrature points times e^{i theta}
 template <std::size_t NDIM>
 struct PhaseValueOp {
-    double kappa = 0.0, o0 = 0.0, o1 = 0.0, rcut = 0.0, rtaper = 0.0;
+    double kappa = 0.0, o0 = 0.0, o1 = 0.0;
 
     void operator()(const Key<NDIM>& key, Tensor<double_complex>& values) const {
         const Tensor<double>& cell = FunctionDefaults<NDIM>::get_cell();
@@ -300,14 +269,13 @@ struct PhaseValueOp {
         for (int i = 0; i < k; ++i) {
             for (int j = 0; j < k; ++j) {
                 const double th = kappa * x0[i] * x1[j];
-                double_complex fac(std::cos(th), std::sin(th));
-                if (rcut > 0.0) fac *= 0.5 * std::erfc((std::sqrt(x0[i] * x0[i] + x1[j] * x1[j]) - rcut) / rtaper);
+                const double_complex fac(std::cos(th), std::sin(th));
                 double_complex* p = v + (long(i) * k + j) * rest;
                 for (long r = 0; r < rest; ++r) p[r] *= fac;
             }
         }
     }
-    template <typename Archive> void serialize(Archive& ar) { ar & kappa & o0 & o1 & rcut & rtaper; }
+    template <typename Archive> void serialize(Archive& ar) { ar & kappa & o0 & o1; }
 };
 
 /// out-of-place form of PhaseValueOp for madness::unary_op (values in, new values out)
@@ -365,33 +333,23 @@ void refine_recursive(const Function<T, NDIM>& g, const opT& op, const bool recu
 template <std::size_t NDIM>
 PhaseValueOp<NDIM> value_op(const BilinearPhase& p) {
     PhaseValueOp<NDIM> vop;
-    vop.kappa = p.kappa; vop.o0 = p.o0; vop.o1 = p.o1; vop.rcut = p.rcut; vop.rtaper = p.rtaper;
+    vop.kappa = p.kappa; vop.o0 = p.o0; vop.o1 = p.o1;
     return vop;
 }
 
 }  // namespace detail
 
-/// refine the tree of f (same values) where the phase p is not resolved, according to p.refinement
+/// refine the tree of f (same values) where the phase p is not resolved
 template <std::size_t NDIM>
 void refine_for_phase(const Function<double_complex, NDIM>& f, const BilinearPhase& p) {
     f.reconstruct();
-    if (p.refinement == PhaseRefinement::poly_error) {
-        MADNESS_CHECK_THROW(p.tolfac > 0.0, "refine_for_phase: tolfac must be positive");
-        detail::PolyErrorRefineOp<double_complex, NDIM> rop;
-        rop.kappa = p.kappa; rop.o0 = p.o0; rop.o1 = p.o1; rop.tolfac = p.tolfac;
-        detail::refine_recursive(f, rop, p.recursive);
-    } else {
-        detail::BoxPhaseRefineOp<double_complex, NDIM> rop;
-        rop.kappa = p.kappa; rop.o0 = p.o0; rop.o1 = p.o1; rop.rext = p.rext; rop.dphi = p.dphi; rop.tol = p.tol;
-        for (int pass = 0; pass < 12; ++pass) {
-            const std::size_t before = f.tree_size();
-            f.refine_general(rop);
-            if (f.tree_size() == before) break;
-        }
-    }
+    MADNESS_CHECK_THROW(p.tolfac > 0.0, "refine_for_phase: tolfac must be positive");
+    detail::PolyErrorRefineOp<double_complex, NDIM> rop;
+    rop.kappa = p.kappa; rop.o0 = p.o0; rop.o1 = p.o1; rop.tolfac = p.tolfac;
+    detail::refine_recursive(f, rop, p.recursive);
 }
 
-/// f e^{i theta} (times the taper, if any), out of place and untruncated; the tree of f is refined
+/// f e^{i theta}, out of place and untruncated; the tree of f is refined
 /// (same values)
 template <std::size_t NDIM>
 Function<double_complex, NDIM> mul_bilinear_phase(const Function<double_complex, NDIM>& f, const BilinearPhase& p) {
@@ -401,7 +359,7 @@ Function<double_complex, NDIM> mul_bilinear_phase(const Function<double_complex,
     return madness::unary_op(f, vop);
 }
 
-/// f <- f e^{i theta} (times the taper, if any) in place, then truncated
+/// f <- f e^{i theta} in place, then truncated
 template <std::size_t NDIM>
 void mul_bilinear_phase_inplace(Function<double_complex, NDIM>& f, const BilinearPhase& p) {
     refine_for_phase(f, p);

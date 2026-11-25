@@ -54,17 +54,16 @@ struct MagneticKernelParameters : public QCCalculationParametersBase {
         initialize<double>("tmin", 2.5e-9, "proper-time cut-off: int_0^tmin as tmin f (derived; nemo: adapted)");
         initialize<double>("t_lll", 1.e300, "chain: only the lowest Landau level beyond t_lll (derived)");
         initialize<double>("max_btau", 2.0, "chain: sub-steps with |B| dtau <= max_btau");
-        initialize<double>("phase_tolfac", 0.1, "chain: the phase product errs by <= phase_tolfac x the truncation "
+        initialize<double>("phase_tolfac", 0.1, "chain, ft: the phase product errs by <= phase_tolfac x the truncation "
                 "tolerance per box (10x tighter costs ~1/3 refinement level at k = 10: uncritical)");
-        initialize<bool>("phase_recursive", true, "chain: recursive phase refinement");
+        initialize<bool>("phase_recursive", true, "chain, ft: recursive phase refinement");
         initialize<int>("nbroaden", 0, "chain, mehler: broaden passes before each convolution");
         // ft
         initialize<double>("ft_qextra", -1.0, "ft: |q| <= |B| L/2 + qextra; <0: from the nuclear cusps (ft_qmax)");
         initialize<double>("ft_qmax", 0.0, "ft: y-wavenumber window |q| <= qmax (derived)");
-        initialize<double>("ft_rcut", 1.e10, "ft: phase cut off (erfc taper) at rho > rcut (derived)");
-        initialize<double>("ft_rtaper", 0.5, "ft: taper width (derived)");
+        initialize<double>("ft_rcut", 1.e10, "ft: radius of the cylinder holding f and G f (derived)");
+        initialize<double>("ft_rtaper", 0.5, "ft: edge width of the y-window (derived)");
         initialize<double>("ft_period", 0.0, "ft: y-period (derived)");
-        initialize<double>("ft_dphi", 3.0, "ft: refine until the phase varies by <= dphi per box");
         initialize<double>("ft_fq_tol", 1.e-6, "ft: drop modes with ||F_q|| < fq_tol ||f|| (derived)");
         initialize<long>("ft_qbatch", 64, "ft: q-modes processed together; 0: all");
     }
@@ -108,8 +107,8 @@ struct MagneticKernelParameters : public QCCalculationParametersBase {
         // lowest, are below eps; only the free z motion is propagated
         set_derived_value("t_lll", absB > 0.0 ? -std::log(eps()) / absB : 1.e300);
 
-        // ft: f and G f decay as e^{-|B| rho^2/4}: phase on the cylinder rcut = 1.5 sqrt(8 ln(1/thresh)/|B|),
-        // erfc taper of width min(0.5, rcut/4)
+        // ft: f and G f decay as e^{-|B| rho^2/4}: cylinder rcut = 1.5 sqrt(8 ln(1/thresh)/|B|), edge width
+        // min(0.5, rcut/4)
         set_derived_value("ft_rcut", absB > 0.0 ? 1.5 * std::sqrt(8.0 * std::log(1.0 / thresh) / absB) : 1.e10);
         set_derived_value("ft_rtaper", std::min(0.5, ft_rcut() / 4.0));
         // ft lives on |x|, |y| < rext = rcut + 3 rtaper: the period P = min(2 x cell width, 4 rext) keeps the
@@ -164,7 +163,6 @@ struct MagneticKernelParameters : public QCCalculationParametersBase {
     double ft_rcut() const { return get<double>("ft_rcut"); }
     double ft_rtaper() const { return get<double>("ft_rtaper"); }
     double ft_period() const { return get<double>("ft_period"); }
-    double ft_dphi() const { return get<double>("ft_dphi"); }
     double ft_fq_tol() const { return get<double>("ft_fq_tol"); }
     long ft_qbatch() const { return get<long>("ft_qbatch"); }
 

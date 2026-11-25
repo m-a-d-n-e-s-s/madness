@@ -109,8 +109,7 @@ X_q = −q/B,  g = e^{−m u²},  N = √(c/π) e^{−c d²},  m = (B/2) tanh(B�
 ```
 
 **Steps.**
-1. Multiply by e^{−iBxy/2}. The phase is kept only on the cylinder ρ < `ft_rcut` (erfc taper of width
-   `ft_rtaper`).
+1. Multiply by e^{−iBxy/2}, refined as in the chain kernels (`phase_tolfac`).
 2. Fourier project in y, giving F_q(x, z) (`project_out`).
 3. Per q and node: x mask, then a 2D (x, z) Gaussian, then x mask.
 4. Assemble Σ_q e^{iqy} Ψ_q (`hartree_product`), then multiply by e^{+iBxy/2}.
@@ -121,8 +120,8 @@ X_q = −q/B,  g = e^{−m u²},  N = √(c/π) e^{−c d²},  m = (B/2) tanh(B�
   L = min(cell half width, r_ext): Q from the nuclear cusps (`ft_qextra` < 0, the default). Cutting |q| > Q drops the cusp momenta of Vψ and raises the
   energy by (4/3) S/Q³, S = Σ_A n_A Z_A² ρ_A(0) (ρ_A(0) = Z_A³ g(|B|/Z_A²)/π, n_A = min(2, Z_A)); Q is chosen for a
   third of the ft precision floor 79 µEh S^0.75 (thresh/1e−4)^0.69 (fit, H atom, B = 1–100), plus |B x_A|/2.
-- The default `ft_rcut` assumes the nuclei lie near the z axis. Pass `ft_rcut` and `ft_rtaper` for
-  off-axis nuclei at strong field, as Armen's B = 425 jobs did (rcut 1.0, rtaper 0.1).
+- `ft_rcut` and `ft_rtaper` set the y-extent r_ext = rcut + 3 rtaper of f and G f: the period, the q window and the
+  y-window of step 4 (|y| < rcut + 9 rtaper). The default rcut assumes the nuclei lie near the z axis.
 - Armen's `magnetic/README.md` and `magnetic/docs/parameters_physics.pdf` on `magnetic-fourier`
   explain every parameter.
 
@@ -153,7 +152,7 @@ bitwise (see Verification):
 
 | Primitive | Policies / parameters | Used by |
 |---|---|---|
-| `mul_bilinear_phase` | `poly_error`: refine where the best degree-(k−1) fit of the phase misses `tolfac`·truncate_tol relative to the box norm (one recursive sweep); `box_phase`: refine boxes within ρ < r_ext whose phase varies by more than `dphi`, with an optional erfc taper | chain / ft |
+| `mul_bilinear_phase` | refine where the best degree-(k−1) fit of the phase misses `tolfac`·truncate_tol relative to the box norm (one recursive sweep) | chain, ft |
 | `gauss_conv_1d`, `gauss_conv_2d` | normalized Gaussians on outer axes, `nbroaden` passes | chain |
 | `gauss_product_operator<NDIM>` | unnormalized anisotropic one-term operator, exponent floor 1e−10 | ft (2D), mehler (3D) |
 | `trapezoid_log` | step h from `eps`, t_min = `lo`²/4 (`MagneticKernelParameters::set_derived_values`, derived as the Coulomb and BSH fits: relative error (4π/√h) e^{−π²/h} = eps for every spectral component; t_min·f shifts the energy by ≈ −10 % of the nuclear smoothing error of radius lo); tmax = −ln(eps)/(|B|/2 − E). znemo: lo = smallest smoothing radius, eps = 0.001 thresh | all |
@@ -276,12 +275,12 @@ passed to `make_magnetic_kernel` and `set_derived_values`. Derived parameters ar
 | `tau_step` | derived: (4π/√h) e^{−π²/h} = eps | step h in ln τ |
 | `tmin` | derived: lo²/4; nemo: adapted, √(2 eps/C) | proper-time cut-off |
 | `t_lll` | derived: −ln(eps)/\|B\| | chain: lowest Landau level only beyond |
-| `max_btau`, `phase_tolfac`, `phase_recursive`, `nbroaden` | 2, 0.1, true, 0 | chain sub-steps, phase refinement, broadening |
+| `max_btau`, `phase_tolfac`, `phase_recursive`, `nbroaden` | 2, 0.1, true, 0 | chain sub-steps, phase refinement (chain, ft), broadening |
 | `ft_qextra` | −1 | ≥ 0: \|q\| ≤ \|B\| L/2 + qextra; < 0: from the nuclear cusps |
 | `ft_qmax` | derived (see "Fourier approach") | y-wavenumber window |
-| `ft_rcut`, `ft_rtaper` | derived: 1.5 √(8 ln(1/thresh)/\|B\|), min(0.5, rcut/4) | phase cylinder and taper |
+| `ft_rcut`, `ft_rtaper` | derived: 1.5 √(8 ln(1/thresh)/\|B\|), min(0.5, rcut/4) | y-extent of f and G f, window edge |
 | `ft_period` | derived: min(2 × cell width, 4 r_ext) | y-period |
-| `ft_dphi`, `ft_qbatch` | 3, 64 | phase refinement, batch size |
+| `ft_qbatch` | 64 | batch size |
 | `ft_fq_tol` | derived: 0.01 thresh | dropped modes |
 
 The smoothing radius c of the nuclear potential comes from `eprec` in the geometry block and the field:
@@ -324,7 +323,7 @@ Map from the original command-line options:
 |---|---|
 | `h2p_madness.py --nodes --tmin --nlll --phase-tolfac --c --gap` | `tau_step`, `tmin`, `t_lll` (derived from thresh and eprec), `phase_tolfac`, `eprec` (geometry), — (internal) |
 | `h2p_madness.py --guess2 sigma/pi` | `guess_lz` (π: `[0, -1]`) |
-| `magneticatom h= tmin= tmax_factor= qextra= rcut= rtaper= dphi=` | `tau_step`, `tmin` (derived), — (derived), `ft_qextra`, `ft_rcut`, `ft_rtaper`, `ft_dphi` (magnetic_kernel block) |
+| `magneticatom h= tmin= tmax_factor= qextra= rcut= rtaper= dphi=` | `tau_step`, `tmin` (derived), — (derived), `ft_qextra`, `ft_rcut`, `ft_rtaper`, — (magnetic_kernel block) |
 | `magneticatom eprec=` | `eprec` (geometry); znemo adds the field dependence of c |
 
 ### Python
