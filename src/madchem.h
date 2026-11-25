@@ -43,7 +43,6 @@
 #include"madness/mra/commandlineparser.h"
 #include<madness/chem/corepotential.h>
 #include<madness/chem/correlationfactor.h>
-#include<madness/chem/diamagneticpotentialfactor.h>
 #include<madness/chem/distpm.h>
 #include<madness/chem/electronic_correlation_factor.h>
 #include<madness/chem/exchangeoperator.h>
@@ -68,7 +67,7 @@
 #include<madness/chem/vibanal.h>
 #include<madness/chem/write_test_input.h>
 #include<madness/chem/xcfunctional.h>
-#include<madness/chem/zcis.h>
+// #include<madness/chem/zcis.h>	// disabled, see the note in zcis.h
 #include<madness/chem/znemo.h>
 
 #endif //MADNESS_MADCHEM_H

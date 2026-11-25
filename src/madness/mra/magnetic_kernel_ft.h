@@ -127,7 +127,9 @@ private:
 
     complex_function_3d apply_nodes(const complex_function_3d& f, const std::vector<Node>& nodes, const double s0) const {
         const double thresh = FunctionDefaults<3>::get_thresh();
-        const double fq_tol = p_.ft_fq_tol() * f.norm2();
+        // screening: modes with ||F_q|| < fq_tol and (node, q) terms bounded below fq_tol/nnodes are skipped
+        // (100x tighter: no change)
+        const double fq_tol = 0.01 * thresh * f.norm2();
         std::vector<std::shared_ptr<operator2dT>> ops;
         // unnormalized exp(-c dx^2 - dz^2/(2 tau)) on the (x, z) plane
         for (const Node& nd : nodes)

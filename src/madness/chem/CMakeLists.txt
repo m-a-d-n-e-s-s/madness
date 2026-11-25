@@ -17,7 +17,6 @@ set(MADCHEM_HEADERS
     CCParameters.h
     corepotential.h
     correlationfactor.h
-    diamagneticpotentialfactor.h
     dispersion.h
     distpm.h
     electronic_correlation_factor.h
@@ -77,7 +76,7 @@ set(MADCHEM_HEADERS
     vibanal.h
     write_test_input.h
     xcfunctional.h
-    zcis.h
+    # zcis.h: disabled, see the note in zcis.h
     znemo.h
 )
 set(MADCHEM_SOURCES
@@ -90,7 +89,6 @@ set(MADCHEM_SOURCES
     CCStructures.cc
     corepotential.cc
     correlationfactor.cc
-    diamagneticpotentialfactor.cc
     dispersion.cc
     distpm.cc
     electronic_correlation_factor.cc
@@ -120,7 +118,7 @@ set(MADCHEM_SOURCES
     SCFOperators.cc
     TDHF.cc
     vibanal.cc
-    zcis.cc
+    # zcis.cc: disabled, see the note in zcis.h
     znemo.cc
     PNO.cpp  PNOF12Potentials.cpp  PNOGuessFunctions.cpp  PNOParameters.cpp  PNOStructures.cpp
 )

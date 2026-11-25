@@ -18,6 +18,6 @@ add_subdirectory(mp2)
 add_subdirectory(cc2)
 add_subdirectory(oep)
 add_subdirectory(znemo)
-add_subdirectory(zcis)
+#add_subdirectory(zcis)		# disabled, see the note in madness/chem/zcis.h
 #add_subdirectory(hf)
 #add_subdirectory(interior_bc)

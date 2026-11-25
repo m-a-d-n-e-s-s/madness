@@ -1,4 +1,12 @@
 /*
+ * DISABLED: zcis is excluded from the build (madness/chem/CMakeLists.txt, apps/CMakeLists.txt, madchem.h).
+ * It iterates with the free BSH operator and all magnetic terms on the right-hand side, using znemo's
+ * bsh machinery: the level shift Nemo_complex_Parameters::shift(), the orbital box Znemo::sbox and the
+ * potentials (B/2) Lz and (B^2/8) rho^2 (potentials::lz_mo, diamagnetic_mo). znemo now iterates only with
+ * the magnetic Green's-function kernels (madness/mra/magnetic_kernels.md) and these were removed; zcis
+ * needs its own BSH setup, or the kernels, before it can be re-enabled.
+ */
+/*
  * Complexcis.h
  *
  *  Created on: 21 Nov 2018

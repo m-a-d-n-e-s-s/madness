@@ -9,8 +9,8 @@ two front ends (znemo, pymadness).
 ### The problem
 
 The free bound-state Helmholtz kernel (T − E)⁻¹ does not describe an electron in a field B. With the
-free kernel, znemo's default (`kernel bsh`) has to put the paramagnetic term (B/2)L_z and the
-diamagnetic term B²ρ²/8 on the right-hand side, and both grow with the field. The kernels here invert
+free kernel, the paramagnetic term (B/2)L_z and the diamagnetic term B²ρ²/8 have to go on the right-hand
+side, and both grow with the field. The kernels here invert
 the magnetic kinetic operator itself:
 
 ```
@@ -238,7 +238,7 @@ complex_function_3d g = K->apply(f, E);          // (T_k - E)^{-1} f, E < K->bot
 
 ### znemo: the `complex` block
 
-`kernel bsh`, the default, leaves znemo unchanged. With a magnetic kernel:
+znemo iterates with a magnetic kernel (`kernel`, default `chain_symmetric`):
 
 - **Kinetic terms.** The kinetic, paramagnetic and diamagnetic terms are in the Green's function (for
   `mehler`, the paramagnetic term stays on the right-hand side).
@@ -257,8 +257,8 @@ complex_function_3d g = K->apply(f, E);          // (T_k - E)^{-1} f, E < K->bot
 
 | Parameter | Default | Meaning |
 |---|---|---|
-| `kernel` | `bsh` | `bsh`, `ft`, `chain_symmetric`, `chain_landau`, `mehler` |
-| `guess_lz` | `[]` | initial orbitals: the restart sequence of moldft and nemo (dft `restart`: `auto` reads `<prefix>.restartdata` of a previous znemo calculation at the same geometry, eprec and B, and does not iterate if it is converged; `iterate`, `read_only`, `none` as in moldft), otherwise the hcore guess: diagonalize the one-electron Hamiltonian of the solver (kernel gauge, cut potentials) in magnetically translated, Landau-squeezed AOs of `aobasis` plus, in a field, the s and p₋ = (x − i sgn B · y) Slater functions e^{−√2 Z r} of each nucleus; `guess_lz` picks the occupied orbitals by L_z (B along a linear molecule; e.g. `[0, -1]` for σ_g π_u), empty: aufbau |
+| `kernel` | `chain_symmetric` | `ft`, `chain_symmetric`, `chain_landau`, `mehler` |
+| `guess_lz` | `[]` | initial orbitals: the restart sequence of moldft and nemo (dft `restart`: `auto` reads `<prefix>.restartdata` of a previous znemo calculation at the same geometry, eprec and B, and does not iterate if it is converged; `iterate`, `read_only`, `none` as in moldft), otherwise the hcore guess: diagonalize the one-electron Hamiltonian of the solver (kernel gauge) in magnetically translated, Landau-squeezed AOs of `aobasis` plus, in a field, the s and p₋ = (x − i sgn B · y) Slater functions e^{−√2 Z r} of each nucleus; `guess_lz` picks the occupied orbitals by L_z (B along a linear molecule; e.g. `[0, -1]` for σ_g π_u), empty: aufbau |
 
 ### The `magnetic_kernel` block
 
@@ -279,7 +279,6 @@ passed to `make_magnetic_kernel` and `set_derived_values`. Derived parameters ar
 | `ft_rcut`, `ft_rtaper` | derived: 1.5 √(8 ln(1/thresh)/\|B\|), min(0.5, rcut/4) | y-extent of f and G f, window edge |
 | `ft_period` | derived: min(2 × cell width, 4 r_ext) | y-period |
 | `ft_qbatch` | 64 | batch size |
-| `ft_fq_tol` | derived: 0.01 thresh | dropped modes |
 
 The smoothing radius c of the nuclear potential comes from `eprec` in the geometry block and the field:
 c = [min(1e−3, eprec/2)/(0.65 Z⁵ g(|B|/Z²))]^{1/3}, g(β) = (1 + 0.2128β)(1 + 0.874 ln(1 + 0.3394β)).
@@ -287,8 +286,7 @@ The truncation threshold is the last value of the dft block's `protocol`; `econv
 The spin Zeeman term ±B/2 per α/β electron is not part of the orbital energies or the iteration; it is
 added to the total energy only (printed as `spin zeeman term`). The print level is the dft block's `print_level` (3 adds timings and the kernel's own output).
 
-With a magnetic kernel znemo also uses truncate mode 0 and initial level 2, and a Coulomb operator
-precision of 0.1·thresh, as the original codes did.
+znemo uses truncate mode 1 and initial level 2, and a Coulomb operator precision of 0.1·thresh.
 
 Example, triplet H₂ at B = 10 with the bond perpendicular to B:
 

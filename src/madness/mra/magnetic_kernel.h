@@ -60,7 +60,6 @@ struct MagneticKernelParameters : public QCCalculationParametersBase {
         initialize<double>("ft_rcut", 1.e10, "ft: radius of the cylinder holding f and G f (derived)");
         initialize<double>("ft_rtaper", 0.5, "ft: edge width of the y-window (derived)");
         initialize<double>("ft_period", 0.0, "ft: y-period (derived)");
-        initialize<double>("ft_fq_tol", 1.e-6, "ft: drop modes with ||F_q|| < fq_tol ||f|| (derived)");
         initialize<long>("ft_qbatch", 64, "ft: q-modes processed together; 0: all");
     }
 
@@ -131,8 +130,6 @@ struct MagneticKernelParameters : public QCCalculationParametersBase {
             qmax = std::max(qmax, Q + 0.5 * absB * xmax);
         }
         set_derived_value("ft_qmax", qmax);
-        // modes with ||F_q|| < 0.01 thresh ||f|| are dropped
-        set_derived_value("ft_fq_tol", 0.01 * thresh);
     }
 
     /// tmin for a cusp-free right-hand side g: int_0^tmin e^{-tau (T-E)} g ~ tmin g shifts the energy by
@@ -151,7 +148,6 @@ struct MagneticKernelParameters : public QCCalculationParametersBase {
     double ft_rcut() const { return get<double>("ft_rcut"); }
     double ft_rtaper() const { return get<double>("ft_rtaper"); }
     double ft_period() const { return get<double>("ft_period"); }
-    double ft_fq_tol() const { return get<double>("ft_fq_tol"); }
     long ft_qbatch() const { return get<long>("ft_qbatch"); }
 
     /// set a parameter from its string representation (user-defined precedence; Python bindings, tests)

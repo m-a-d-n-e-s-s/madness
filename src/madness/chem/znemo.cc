@@ -7,7 +7,6 @@
 
 #include <madness/mra/mra.h>
 #include "znemo.h"
-#include<madness/chem/diamagneticpotentialfactor.h>
 #include <madness/world/test_utilities.h>
 #include<madness/chem/masks_and_boxes.h>
 #include<madness/chem/MolecularOrbitals.h>
@@ -28,16 +27,12 @@ Znemo::Znemo(World& world, const commandlineparser& parser) : NemoBase(world), m
     // independent of the energy convergence econv
     FunctionDefaults<3>::set_thresh(calc_param.protocol().back());
     FunctionDefaults<3>::set_refine(true);
-    FunctionDefaults<3>::set_initial_level(5);
+    // initial level of the original magnetic-kernel codes; truncation tightened by 2^-n on fine levels
+    // (mode 1): the variational energy measures the orbital noise through |pi phi|^2, i.e. derivatives,
+    // so absolute truncation (mode 0) leaves it scattering at strong field (mode 2 makes the kernel
+    // application far more expensive)
+    FunctionDefaults<3>::set_initial_level(2);
     FunctionDefaults<3>::set_truncate_mode(1);
-    if (param.use_magnetic_kernel()) {
-        // initial level of the original magnetic-kernel codes; truncation tightened by 2^-n on fine levels
-        // (mode 1): the variational energy measures the orbital noise through |pi phi|^2, i.e. derivatives,
-        // so absolute truncation (mode 0) leaves it scattering at strong field (mode 2 makes the kernel
-        // application far more expensive)
-        FunctionDefaults<3>::set_initial_level(2);
-        FunctionDefaults<3>::set_truncate_mode(1);
-    }
 
     aobasis.read_file(calc_param.aobasis());
 //    cparam.set_molecular_info(mol, aobasis, 0);
@@ -46,13 +41,6 @@ Znemo::Znemo(World& world, const commandlineparser& parser) : NemoBase(world), m
 
     FunctionDefaults<3>::set_cubic_cell(-calc_param.L(), calc_param.L());
     calc_param.set_derived_value("spin_restricted",false);
-
-	// largest distance of a nucleus from the field axis through the gauge origin (default radius of the A cut)
-	double nuclear_rho=0.0;
-	for (const coord_3d& c : mol.get_all_coords_vec()) nuclear_rho=std::max(nuclear_rho,std::sqrt(c[0]*c[0]+c[1]*c[1]));
-	param.set_derived_values(nuclear_rho);
-	MADNESS_CHECK_THROW((not param.cut_vector_potential()) or param.kernel()=="bsh" or param.kernel()=="mehler",
-			"cut_vector_potential: bsh or mehler kernel only (the other kernels contain the uncut A)");
 
 	print_info=printleveler(calc_param.print_level());
 
@@ -63,12 +51,10 @@ Znemo::Znemo(World& world, const commandlineparser& parser) : NemoBase(world), m
 	}
 
 	update_smoothing_radii();
-	if (param.use_magnetic_kernel()) {
-		MagneticKernelParameters kp(world,parser);
-		set_kernel_derived_values(kp,FunctionDefaults<3>::get_thresh());
-		if (world.rank()==0) kp.print("magnetic_kernel","end");
-		mkernel=make_magnetic_kernel(world,param.kernel(),param.physical_B(),kp);
-	}
+	MagneticKernelParameters kp(world,parser);
+	set_kernel_derived_values(kp,FunctionDefaults<3>::get_thresh());
+	if (world.rank()==0) kp.print("magnetic_kernel","end");
+	mkernel=make_magnetic_kernel(world,param.kernel(),param.physical_B(),kp);
 
 	B={0,0,param.physical_B()};
 
@@ -76,21 +62,18 @@ Znemo::Znemo(World& world, const commandlineparser& parser) : NemoBase(world), m
     // set the linear moments
     for (int i=0; i<3; ++i) rvec.push_back(real_factory_3d(world).functor([&i] (const coord_3d& r) {return r[i];}));
 
-	const double ceps=param.use_magnetic_kernel() ? 0.1*FunctionDefaults<3>::get_thresh() : calc_param.econv();
-	coulop=std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world,calc_param.lo(),ceps));
+	coulop=std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world,calc_param.lo(),0.1*FunctionDefaults<3>::get_thresh()));
 };
 
 bool Znemo::need_recompute_factors_and_potentials(const double thresh) const {
 	bool need=NemoBase::need_recompute_factors_and_potentials(thresh);
 	if ((not (potentialmanager.get() and potentialmanager->vnuclear().is_initialized()))
 	        		or (potentialmanager->vnuclear().thresh()>thresh)) need=true;
-    if (not diafac.get()) need=true;
     return need;
 }
 
 void Znemo::invalidate_factors_and_potentials() {
     NemoBase::invalidate_factors_and_potentials();
-	diafac.reset();
 	potentialmanager.reset();
 	// mkernel holds the input parameters: rebuilt in recompute_factors_and_potentials when they change
 }
@@ -98,16 +81,6 @@ void Znemo::invalidate_factors_and_potentials() {
 void Znemo::recompute_factors_and_potentials(const double thresh) {
 
 	print("recomputing factors and potentials in znemo");
-    // compute the nuclei's positions in the "A" space
-	diafac.reset(new Diamagnetic_potential_factor(world,param,mol.get_all_coords_vec()));
-
-	coord_3d box_offset={0.0,0.0,0.0};
-	if (param.box().size()==5) box_offset={param.box()[2],param.box()[3],param.box()[4]};
-	spherical_box<3> sbox2(param.box()[0],param.box()[1],box_offset);
-	sbox=real_factory_3d(world).functor(sbox2);
-	cutA_S=diafac->cut_A_factor_function();
-	if (param.cut_vector_potential() and world.rank()==0)
-		print("vector potential cut at rho =",param.potential_radius(),"with edge width",param.potential_cut_width());
 
 	// the guess is read from a previous nemo calculation
 	// make sure the molecule was not reoriented there
@@ -124,19 +97,16 @@ void Znemo::recompute_factors_and_potentials(const double thresh) {
 	// zeeman_R_comm), with the metric R^2 in the Fock matrix and the energy
     construct_nuclear_correlation_factor(mol, potentialmanager, nemo_param.ncf());
 
-	if (param.use_magnetic_kernel()) {
-		MagneticKernelParameters kp=mkernel->parameters();
-		set_kernel_derived_values(kp,thresh);
-		if (kp!=mkernel->parameters()) {
-			if (world.rank()==0) kp.print("magnetic_kernel","end");
-			mkernel=make_magnetic_kernel(world,param.kernel(),param.physical_B(),kp);
-		}
-		if (world.rank()==0) print("magnetic kernel",mkernel->name(),"for B =",param.physical_B());
+	MagneticKernelParameters kp=mkernel->parameters();
+	set_kernel_derived_values(kp,thresh);
+	if (kp!=mkernel->parameters()) {
+		if (world.rank()==0) kp.print("magnetic_kernel","end");
+		mkernel=make_magnetic_kernel(world,param.kernel(),param.physical_B(),kp);
 	}
+	if (world.rank()==0) print("magnetic kernel",mkernel->name(),"for B =",param.physical_B());
 
     // (re) construct the Poisson solver
-	const double ceps=param.use_magnetic_kernel() ? 0.1*FunctionDefaults<3>::get_thresh() : get_calc_param().econv();
-	coulop=std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world,get_calc_param().lo(),ceps));
+	coulop=std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world,get_calc_param().lo(),0.1*thresh));
 
 }
 
@@ -161,15 +131,6 @@ void Znemo::set_kernel_derived_values(MagneticKernelParameters& kp, const double
 	kp.verbose=(get_calc_param().print_level()>=3);
 }
 
-bool Znemo::test() const {
-	bool success=true;
-	try {
-		success=success and diafac->test_me(1);
-	} catch (...) {
-		print("tests failed..");
-	}
-	return success;
-}
 
 
 /// compute the molecular energy
@@ -207,10 +168,8 @@ void Znemo::output_calc_info_schema(const double& energy) const {
     j["B"]=this->B;
     j["driver"]="energy";
     j["return_energy"]=energy;
-    if (mkernel) {
-        j["kernel"]=mkernel->name();
-        j["kernel_energy"]=kernel_energy;
-    }
+    j["kernel"]=mkernel->name();
+    j["kernel_energy"]=kernel_energy;
     update_schema(get_calc_param().prefix()+".calc_info", j);
 }
 
@@ -286,14 +245,13 @@ void Znemo::iterate() {
 		apot=compute_potentials(amo, density, amo);		// 4.53
 		Vnemoa=assemble_rhs(apot,amo);
 		truncate(world,Vnemoa,thresh*0.1);
-		Kinetic<double_complex,3> T(world);
-		focka=(mkernel ? kinetic_pi_matrix(amo) : T(R2amo,amo)) + compute_vmat(amo,apot);		// 0.5??
+		focka=kinetic_pi_matrix(amo) + compute_vmat(amo,apot);
 
 		if (have_beta()) {
 			bpot=compute_potentials(bmo, density, bmo);
 			Vnemob=assemble_rhs(bpot,bmo);
 			truncate(world,Vnemob,thresh*0.1);
-			fockb=(mkernel ? kinetic_pi_matrix(bmo) : T(R2bmo,bmo)) + compute_vmat(bmo,bpot);
+			fockb=kinetic_pi_matrix(bmo) + compute_vmat(bmo,bpot);
 		}
 
 		if (world.rank()==0 and (print_info.print_convergence())) {
@@ -303,9 +261,8 @@ void Znemo::iterate() {
 		}
 
 		oldenergy=energy;
-		energy=compute_energy(amo,apot,bmo,bpot,print_info.print_convergence(),false);
+		energy=compute_energy(amo,apot,bmo,bpot,print_info.print_convergence());
 		current_energy=energy;
-//		energy=compute_energy_no_confinement(amo,apot,bmo,bpot,print_info.print_convergence());	// 2.48
 
 		Tensor<double_complex> ovlp=matrix_inner(world,R2amo,amo);
 		canonicalize(amo,Vnemoa,apot,solvera,focka,ovlp);
@@ -329,9 +286,9 @@ void Znemo::iterate() {
 					iter, wall_time(), energy, na, nb);
 		}
 
-		// magnetic kernels: test the kernel-consistent energy, as the original drivers did -- the variational
-		// energy (derivatives of orbitals with strong phases) scatters at strong field
-		const double denergy=mkernel ? kernel_energy-kernel_energy_old : oldenergy-energy;
+		// test the kernel-consistent energy, as the original drivers did -- the variational energy (derivatives of
+		// orbitals with strong phases) scatters at strong field
+		const double denergy=kernel_energy-kernel_energy_old;
 		if (std::abs(denergy)<get_calc_param().econv() and (sqrt(na*na+nb*nb)<dconv)) {
 			print("energy converged");
 			converged_for_thresh=FunctionDefaults<3>::get_thresh();
@@ -344,8 +301,7 @@ void Znemo::iterate() {
 		// compute the residual of the Greens' function
 		// the spin Zeeman term +-B/2 is a constant per spin: it is not part of the orbital energies (and drops out
 		// of the iteration), only of the total energy (compute_energy)
-		const double levelshifta=param.shift();
-		if (mkernel and ncf->type()!=NuclearCorrelationFactor::None) {
+		if (ncf->type()!=NuclearCorrelationFactor::None) {
 			std::vector<complex_function_3d> g=Vnemoa;
 			for (auto& f : Vnemob) g.push_back(f);
 			Tensor<double> E(long(g.size()));
@@ -353,52 +309,44 @@ void Znemo::iterate() {
 			for (long i=0; i<beps.size(); ++i) E(aeps.size()+i)=beps(i);
 			adapt_kernel_tmin(g,E,iter==0);
 		}
-		if (mkernel and iter==0) {
+		if (iter==0) {
 			akeps=copy(aeps);	// Tensor assignment is shallow: the kernel energies must not alias the Fock diagonal
 			bkeps=copy(beps);
 		}
-		std::vector<complex_function_3d> resa=mkernel
-				? compute_residuals(Vnemoa,amo,akeps,0.0)
-				: compute_residuals(Vnemoa,amo,aeps,levelshifta);	// 2.16
+		std::vector<complex_function_3d> resa=compute_residuals(Vnemoa,amo,akeps);
 
 		Tensor<double> normsa=real(inner(world,make_bra(resa),resa));
 		na=sqrt(normsa.sumsq());
 
-		// magnetic kernels: truncate the update at 0.1*thresh and not again after orthonormalization -- each
+		// truncate the update at 0.1*thresh and not again after orthonormalization -- each
 		// truncation at thresh perturbs the converged orbitals, which the variational energy picks up through
 		// |pi phi|^2, and the kernel energies E_i stall at a noise floor above econv
 		std::vector<complex_function_3d> amo_new=solvera.update(amo,resa,0.01,3);
-		amo_new=mkernel ? truncate(amo_new,0.1*thresh) : truncate(sbox*amo_new);
+		amo_new=truncate(amo_new,0.1*thresh);
 
 		do_step_restriction(amo,amo_new);
 
-		amo=mkernel ? orthonormalize(amo_new) : truncate(orthonormalize(amo_new));
+		amo=orthonormalize(amo_new);
 
 		if (have_beta()) {
-			const double levelshiftb=param.shift();
-			std::vector<complex_function_3d> resb=mkernel
-					? compute_residuals(Vnemob,bmo,bkeps,0.0)
-					: compute_residuals(Vnemob,bmo,beps,levelshiftb);
-			if (not mkernel) truncate(world,resb);	// the kernel residual is already truncated at 0.1*thresh
+			std::vector<complex_function_3d> resb=compute_residuals(Vnemob,bmo,bkeps);
 			Tensor<double> normsb=real(inner(world,make_bra(resb),resb));
 			nb=sqrt(normsb.sumsq());
 
 			std::vector<complex_function_3d> bmo_new=solverb.update(bmo,resb,0.01,3);
-			bmo_new=mkernel ? truncate(bmo_new,0.1*thresh) : truncate(sbox*bmo_new);
+			bmo_new=truncate(bmo_new,0.1*thresh);
 			do_step_restriction(bmo,bmo_new);
-			bmo=mkernel ? orthonormalize(bmo_new) : truncate(orthonormalize(bmo_new));
+			bmo=orthonormalize(bmo_new);
 		} else {
 			nb=0.0;
 		}
-		if (mkernel) {
-			kernel_energy_old=kernel_energy;
-			// E_var + sum_i (E_i - F_ii) = sum_i E_i - (J - K) + E_nuc + E_spin-Zeeman
-			kernel_energy=energy;
-			for (long i=0; i<akeps.size(); ++i) kernel_energy+=akeps(i)-aeps(i);
-			for (long i=0; i<bkeps.size(); ++i) kernel_energy+=bkeps(i)-beps(i);
-			if ((world.rank()==0) and print_info.print_energies())
-				printf("kernel-consistent energy %12.8f\n",kernel_energy);
-		}
+		kernel_energy_old=kernel_energy;
+		// E_var + sum_i (E_i - F_ii) = sum_i E_i - (J - K) + E_nuc + E_spin-Zeeman
+		kernel_energy=energy;
+		for (long i=0; i<akeps.size(); ++i) kernel_energy+=akeps(i)-aeps(i);
+		for (long i=0; i<bkeps.size(); ++i) kernel_energy+=bkeps(i)-beps(i);
+		if ((world.rank()==0) and print_info.print_energies())
+			printf("kernel-consistent energy %12.8f\n",kernel_energy);
 	}
 }
 
@@ -432,20 +380,14 @@ std::vector<complex_function_3d> Znemo::make_bra(const std::vector<complex_funct
 
 std::vector<complex_function_3d> Znemo::assemble_rhs(const potentials& pot,
 		const std::vector<complex_function_3d>& mo) const {
-	if (not mkernel) return pot.vnuc_mo+pot.lz_mo+
-			pot.diamagnetic_mo-pot.K_mo+pot.J_mo+pot.zeeman_R_comm;
-
-	// magnetic kernels: the kinetic energy and the diamagnetic term are in the Green's function, the
+	// the kinetic energy and the diamagnetic term are in the Green's function, the
 	// spin Zeeman term in its energy argument (compute_residuals); the paramagnetic term only if the
-	// kernel does not contain it (mehler, symmetric gauge), with the cut vector potential as S (B/2) Lz:
-	// the trap (B^2/8) rho^2 stays exact in the kernel, so outside R_c the electron sees the bare trap
+	// kernel does not contain it (mehler, symmetric gauge)
 	std::vector<complex_function_3d> v=pot.vnuc_mo-pot.K_mo+pot.J_mo+pot.zeeman_R_comm;
 	if (not mkernel->absorbs_paramagnetic()) {
 		MADNESS_CHECK_THROW(mkernel->gauge()==MagneticGauge::symmetric,"paramagnetic term needs the symmetric gauge");
 		// B-spline derivative: with the Alpert derivative the iteration diverged at B = 100
-		std::vector<complex_function_3d> lz=0.5*B[2]*Lz<double_complex,3>(world,true)(mo);
-		if (param.cut_vector_potential()) lz=cutA_S*lz;
-		v+=lz;
+		v+=0.5*B[2]*Lz<double_complex,3>(world,true)(mo);
 	}
 	return v;
 }
@@ -468,7 +410,6 @@ std::vector<complex_function_3d> Znemo::pi_apply(const std::vector<complex_funct
 /// differentiating the cusp of R: pi (R F) = R (pi + i U1) F, U1 = -grad R/R, so the matrix is
 /// (1/2) sum_d <R^2 w_id|w_jd>, w_d = (pi_d + i U1_d) F (contains L_z and A^2 through pi)
 Tensor<double_complex> Znemo::kinetic_pi_matrix(const std::vector<complex_function_3d>& mo) const {
-	MADNESS_CHECK_THROW(mkernel,"kinetic_pi_matrix: magnetic kernels only");
 	Tensor<double_complex> t(mo.size(),mo.size());
 	if (mo.size()==0) return t;
 	const bool nemo=kernel_nemo();
@@ -484,7 +425,7 @@ Tensor<double_complex> Znemo::kinetic_pi_matrix(const std::vector<complex_functi
 /// C = <g|T - E|g> = (1/2)|pi g|^2 - E |g|^2, not below the bare value lo^2/4. C grows as the orbitals contract,
 /// so it is re-evaluated in every iteration: tmin may grow in the first one only, and shrinks later when needed.
 void Znemo::adapt_kernel_tmin(const std::vector<complex_function_3d>& g, const Tensor<double>& E, const bool first) {
-	if (not mkernel or ncf->type()==NuclearCorrelationFactor::None or g.empty()) return;
+	if (ncf->type()==NuclearCorrelationFactor::None or g.empty()) return;
 	if (mkernel->parameters().is_user_defined("tmin")) return;
 	double cmax=0.0;
 	std::vector<double> pn(g.size(),0.0);
@@ -522,7 +463,7 @@ double Znemo::analyze() {
 		bpot=compute_potentials(bmo,density,bmo);
 	}
 
-	double energy=compute_energy(amo,apot,bmo,bpot,true,true);
+	double energy=compute_energy(amo,apot,bmo,bpot,true);
 
 	if (world.rank()==0) {
 		print("orbital energies alpha",aeps);
@@ -531,7 +472,7 @@ double Znemo::analyze() {
 
 	// the analysis below assumes the symmetric gauge: transform Landau-gauge orbitals, restore at the end
 	const std::vector<complex_function_3d> amo_kernel=amo, bmo_kernel=bmo;
-	if (mkernel and mkernel->gauge()!=MagneticGauge::symmetric) {
+	if (mkernel->gauge()!=MagneticGauge::symmetric) {
 		for (auto& mo : amo) mo=mkernel->to_symmetric_gauge(mo).truncate();
 		for (auto& mo : bmo) mo=mkernel->to_symmetric_gauge(mo).truncate();
 		density=compute_density(amo,bmo);
@@ -599,99 +540,8 @@ double Znemo::analyze() {
 }
 
 
-//double Znemo::compute_energy_no_confinement(const std::vector<complex_function_3d>& amo, const Znemo::potentials& apot,
-//		const std::vector<complex_function_3d>& bmo, const Znemo::potentials& bpot, const bool do_print) const {
-//
-//	MADNESS_EXCEPTION("Znemo::compute_energy_no_confinement is inaccurate",1);
-//	timer tenergy(world,print_info.print_timings());
-//    double fac= cparam.spin_restricted() ? 2.0 : 1.0;
-//    std::vector<complex_function_3d> dia2amo=make_bra(amo);
-//    std::vector<complex_function_3d> dia2bmo=make_bra(bmo);
-//    std::vector<complex_function_3d> diaamo=truncate(amo*diafac->factor()*R);
-//    std::vector<complex_function_3d> diabmo=truncate(bmo*diafac->factor()*R);
-//
-//    double_complex kinetic=0.0;
-//    for (int axis = 0; axis < 3; axis++) {
-//        complex_derivative_3d D = free_space_derivative<double_complex, 3>(world, axis);
-//        const std::vector<complex_function_3d> damo = apply(world, D, amo, false);
-//        const std::vector<complex_function_3d> dbmo = apply(world, D, bmo);
-//        double k1a=norm2(world,R*damo-R*ncf->U1(axis)*amo);
-//        double k1b=norm2(world,R*dbmo-R*ncf->U1(axis)*bmo);
-//        kinetic+=fac * 0.5* (k1a*k1a + k1b*k1b);
-//    }
-//
-//    const real_function_3d diapot=diafac->bare_diamagnetic_potential();
-//    const real_function_3d vnuc=potentialmanager->vnuclear();
-//    const complex_function_3d lzcomm=diafac->compute_lz_commutator();
-//    const real_function_3d density=compute_density(amo,bmo);
-//
-//    Lz lz(world,false);
-//    double_complex nuclear_potential=inner(density,vnuc);
-//    double_complex diamagnetic=inner(density,diapot);
-//    double_complex lzval=fac*(inner(world,diaamo,0.5*B[2]*lz(diaamo)).sum()+inner(world,diabmo,0.5*B[2]*lz(diabmo)).sum())
-//    		+fac*(inner(world,diaamo,lzcomm*diaamo).sum()+inner(world,diabmo,lzcomm*diabmo).sum());
-//    double_complex spin_zeeman=fac*(inner(world,dia2amo,apot.spin_zeeman_mo).sum()+inner(world,dia2bmo,bpot.spin_zeeman_mo).sum());
-//    double_complex coulomb=fac*0.5*(inner(world,dia2amo,apot.J_mo).sum()+inner(world,dia2bmo,bpot.J_mo).sum());
-//    double_complex exchange=fac*0.5*(inner(world,dia2amo,apot.K_mo).sum()+inner(world,dia2bmo,bpot.K_mo).sum());
-//    double_complex zeeman_R_comm=0.0;//fac*(inner(world,dia2amo,apot.zeeman_R_comm).sum()+inner(world,dia2bmo,bpot.zeeman_R_comm).sum());
-//
-//    double_complex energy=kinetic + nuclear_potential + mol.nuclear_repulsion_energy() +
-//    		diamagnetic + lzval + spin_zeeman + coulomb - exchange + zeeman_R_comm;
-//
-//	if (world.rank()==0 and do_print) {
-//		printf("  kinetic energy        %12.8f \n", real(kinetic));
-//		printf("  nuclear potential     %12.8f \n", real(nuclear_potential));
-//		printf("  nuclear repulsion     %12.8f \n", mol.nuclear_repulsion_energy());
-//		printf("  diamagnetic term      %12.8f \n", real(diamagnetic));
-//		printf("  orbital zeeman term   %12.8f \n", real(lzval));
-//		printf("  orbital zeeman R comm %12.8f \n", real(zeeman_R_comm));
-//		printf("  spin zeeman term      %12.8f \n", real(spin_zeeman));
-//		printf("  Coulomb               %12.8f \n", real(coulomb));
-//		printf("  exchange              %12.8f \n", real(exchange));
-//		printf("  total                 %12.8f \n", real(energy));
-//	}
-//
-//	if(fabs(imag(energy))>1.e-7) {
-//
-//
-//		print("real part");
-//		printf("  kinetic energy      %12.8f \n", real(kinetic));
-//		printf("  nuclear potential   %12.8f \n", real(nuclear_potential));
-//		printf("  nuclear repulsion   %12.8f \n", mol.nuclear_repulsion_energy());
-//		printf("  diamagnetic term    %12.8f \n", real(diamagnetic));
-//		printf("  orbital zeeman term %12.8f \n", real(lzval));
-//		printf("  spin zeeman term    %12.8f \n", real(spin_zeeman));
-//		printf("  orbital zeeman R comm %12.8f \n", real(zeeman_R_comm));
-//		printf("  Coulomb             %12.8f \n", real(coulomb));
-//		printf("  exchange            %12.8f \n", real(exchange));
-//		printf("  total               %12.8f \n", real(energy));
-//
-//		print("imaginary part");
-//		printf("  kinetic energy      %12.8f \n", imag(kinetic));
-//		printf("  nuclear potential   %12.8f \n", imag(nuclear_potential));
-//		printf("  nuclear repulsion   %12.8f \n", 0.0);
-//		printf("  diamagnetic term    %12.8f \n", imag(diamagnetic));
-//		printf("  orbital zeeman term %12.8f \n", imag(lzval));
-//		printf("  orbital zeeman R comm %12.8f \n", imag(zeeman_R_comm));
-//		printf("  spin zeeman term    %12.8f \n", imag(spin_zeeman));
-//		printf("  Coulomb             %12.8f \n", imag(coulomb));
-//		printf("  exchange            %12.8f \n", imag(exchange));
-//		printf("  total               %12.8f \n", imag(energy));
-//
-//		print("imaginary part of the energy",energy.imag());
-//
-//		MADNESS_EXCEPTION("complex energy computation.. ",1);
-//	}
-//
-//	tenergy.end("compute_energy no confinement");
-//	return real(energy);
-//}
-
-
-
 double Znemo::compute_energy(const std::vector<complex_function_3d>& amo, const Znemo::potentials& apot,
-		const std::vector<complex_function_3d>& bmo, const Znemo::potentials& bpot, const bool do_print,
-		const bool no_confinement) const {
+		const std::vector<complex_function_3d>& bmo, const Znemo::potentials& bpot, const bool do_print) const {
 
 	timer tenergy(world,print_info.print_timings());
     double fac= get_calc_param().spin_restricted() ? 2.0 : 1.0;
@@ -699,37 +549,16 @@ double Znemo::compute_energy(const std::vector<complex_function_3d>& amo, const 
     std::vector<complex_function_3d> dia2bmo=make_bra(bmo);
 
 
+    // 1/2 |pi phi|^2 contains the paramagnetic and the diamagnetic terms
     double_complex kinetic=0.0;
-    if (mkernel) {
-        // 1/2 |pi phi|^2 contains the paramagnetic and the diamagnetic terms
-        Tensor<double_complex> ta=kinetic_pi_matrix(amo), tb=kinetic_pi_matrix(bmo);
-        for (long i=0; i<ta.dim(0); ++i) kinetic+=fac*ta(i,i);
-        for (long i=0; i<tb.dim(0); ++i) kinetic+=fac*tb(i,i);
-    } else for (int axis = 0; axis < 3; axis++) {
-        complex_derivative_3d D = free_space_derivative<double_complex, 3>(world, axis);
-        const std::vector<complex_function_3d> damo = apply(world, D, amo);
-        const std::vector<complex_function_3d> ddia2amo = apply(world, D, dia2amo);
-        const std::vector<complex_function_3d> dbmo = apply(world, D, bmo);
-        const std::vector<complex_function_3d> ddia2bmo = apply(world, D, dia2bmo);
-        kinetic += fac* 0.5 * (inner(world, ddia2amo, damo).sum() + inner(world, ddia2bmo, dbmo).sum());
-    }
-
-    double_complex diamagnetic=double_complex(0.0);
-    if (mkernel) {
-        // in the kinetic energy
-    } else if (no_confinement) {
-        const real_function_3d diapot=diafac->bare_diamagnetic_potential();
-        const real_function_3d density=compute_density(amo,bmo);
-    	diamagnetic=inner(density,diapot);
-    } else {
-    	diamagnetic=fac*(inner(world,dia2amo,apot.diamagnetic_mo).sum()+inner(world,dia2bmo,bpot.diamagnetic_mo).sum());
-    }
+    Tensor<double_complex> ta=kinetic_pi_matrix(amo), tb=kinetic_pi_matrix(bmo);
+    for (long i=0; i<ta.dim(0); ++i) kinetic+=fac*ta(i,i);
+    for (long i=0; i<tb.dim(0); ++i) kinetic+=fac*tb(i,i);
 
     const bool sym=kernel_nemo();	// symmetric kinetic term: bare V, no R commutator (see compute_vmat)
     double_complex nuclear_potential=sym
     		? fac*(inner(world,dia2amo,apot.vbare_mo).sum()+inner(world,dia2bmo,bpot.vbare_mo).sum())
     		: fac*(inner(world,dia2amo,apot.vnuc_mo).sum()+inner(world,dia2bmo,bpot.vnuc_mo).sum());
-    double_complex lz=fac*(inner(world,dia2amo,apot.lz_mo).sum()+inner(world,dia2bmo,bpot.lz_mo).sum());
     // spin Zeeman term +B/2 per alpha and -B/2 per beta electron: in the total energy only
     const double_complex spin_zeeman=0.5*B[2]*fac*(double(amo.size())-double(bmo.size()));
     double_complex coulomb=fac*0.5*(inner(world,dia2amo,apot.J_mo).sum()+inner(world,dia2bmo,bpot.J_mo).sum());
@@ -737,14 +566,12 @@ double Znemo::compute_energy(const std::vector<complex_function_3d>& amo, const 
     double_complex zeeman_R_comm=sym ? 0.0 : fac*(inner(world,dia2amo,apot.zeeman_R_comm).sum()+inner(world,dia2bmo,bpot.zeeman_R_comm).sum());
 
     double_complex energy=kinetic + nuclear_potential + mol.nuclear_repulsion_energy() +
-    		diamagnetic + lz + spin_zeeman + coulomb - exchange + zeeman_R_comm;
+    		spin_zeeman + coulomb - exchange + zeeman_R_comm;
 
 	if (world.rank()==0 and do_print) {
 		printf("  kinetic energy        %12.8f \n", real(kinetic));
 		printf("  nuclear potential     %12.8f \n", real(nuclear_potential));
 		printf("  nuclear repulsion     %12.8f \n", mol.nuclear_repulsion_energy());
-		printf("  diamagnetic term      %12.8f \n", real(diamagnetic));
-		printf("  orbital zeeman term   %12.8f \n", real(lz));
 		printf("  orbital zeeman R comm %12.8f \n", real(zeeman_R_comm));
 		printf("  spin zeeman term      %12.8f \n", real(spin_zeeman));
 		printf("  Coulomb               %12.8f \n", real(coulomb));
@@ -759,8 +586,6 @@ double Znemo::compute_energy(const std::vector<complex_function_3d>& amo, const 
 		printf("  kinetic energy      %12.8f \n", real(kinetic));
 		printf("  nuclear potential   %12.8f \n", real(nuclear_potential));
 		printf("  nuclear repulsion   %12.8f \n", mol.nuclear_repulsion_energy());
-		printf("  diamagnetic term    %12.8f \n", real(diamagnetic));
-		printf("  orbital zeeman term %12.8f \n", real(lz));
 		printf("  orbital zeeman R comm %12.8f \n", real(zeeman_R_comm));
 		printf("  spin zeeman term    %12.8f \n", real(spin_zeeman));
 		printf("  Coulomb             %12.8f \n", real(coulomb));
@@ -771,8 +596,6 @@ double Znemo::compute_energy(const std::vector<complex_function_3d>& amo, const 
 		printf("  kinetic energy      %12.8f \n", imag(kinetic));
 		printf("  nuclear potential   %12.8f \n", imag(nuclear_potential));
 		printf("  nuclear repulsion   %12.8f \n", 0.0);
-		printf("  diamagnetic term    %12.8f \n", imag(diamagnetic));
-		printf("  orbital zeeman term %12.8f \n", imag(lz));
 		printf("  orbital zeeman R comm %12.8f \n", imag(zeeman_R_comm));
 		printf("  spin zeeman term    %12.8f \n", imag(spin_zeeman));
 		printf("  Coulomb             %12.8f \n", imag(coulomb));
@@ -880,31 +703,6 @@ void Znemo::test_compute_current_density() const {
 
 }
 
-void Znemo::test_landau_wave_function() {
-	recompute_factors_and_potentials(FunctionDefaults<3>::get_thresh());
-
-	int m=1;
-	double B=param.physical_B();
-	complex_function_3d f=complex_factory_3d(world).functor(landau_wave_function(m,-B));
-	double fnorm=f.norm2();
-	f.scale(1.0/fnorm);
-
-	Lz<double_complex,3> lz(world);
-	double_complex expval=0.5*B*lz(f,f);
-	print("<f(m) | Lz | f(m)> ", m, expval);
-	double_complex diaexpval=inner(f,diafac->bare_diamagnetic_potential()*f);
-	print("<f(m) | dia | f(m)>", m, diaexpval);
-	Kinetic<double_complex,3> T(world);
-	double_complex kinexpval=T(f,f);
-	print("<f(m) | T | f(m)>  ", m, kinexpval);
-
-	print("total energy",expval + diaexpval +kinexpval);
-	print("expect some contribution from the confinement in z-direction");
-
-
-
-	MADNESS_EXCEPTION("end of test",1);
-}
 
 
 
@@ -1088,10 +886,10 @@ Znemo::hcore_guess() const {
 
 	// basis: the AOs of aobasis and, in a field, the s and p_{-sgn B} Slater functions e^{-sqrt(2) Z r},
 	// (x - i sgn(B) y) e^{-sqrt(2) Z r} of each nucleus; all magnetically translated and Landau-squeezed.
-	// The Hamiltonian is the one-electron part of the Fock matrix of the solver (kernel gauge, cut potentials).
+	// The Hamiltonian is the one-electron part of the Fock matrix of the solver (kernel gauge).
 	const double Bz=param.physical_B();
 	const double sgn=(Bz<0.0) ? -1.0 : 1.0;
-	const bool landau=mkernel and mkernel->gauge()==MagneticGauge::landau;
+	const bool landau=mkernel->gauge()==MagneticGauge::landau;
 	std::vector<std::function<double_complex(const coord_3d&)> > phi;
 	std::vector<coord_3d> center;
 	for (int i=0; i<aobasis.nbf(mol); ++i) {
@@ -1126,9 +924,7 @@ Znemo::hcore_guess() const {
 
 	// one-electron Hamiltonian and overlap as in the Fock matrix of the iteration
 	std::vector<complex_function_3d> bra=make_bra(nemo_aos);
-	Kinetic<double_complex,3> T(world);
-	Tensor<double_complex> h=(mkernel ? kinetic_pi_matrix(nemo_aos) : T(bra,nemo_aos))
-			+ compute_vmat(nemo_aos,one_electron_potentials(nemo_aos));
+	Tensor<double_complex> h=kinetic_pi_matrix(nemo_aos)+compute_vmat(nemo_aos,one_electron_potentials(nemo_aos));
 	Tensor<double_complex> S=matrix_inner(world,bra,nemo_aos);
 	h=0.5*(h+conj_transpose(h));
 	S=0.5*(S+conj_transpose(S));
@@ -1196,32 +992,18 @@ Znemo::potentials Znemo::one_electron_potentials(const std::vector<complex_funct
 	potentials pot(world,rhs.size());
 	pot.vnuc_mo=nuc(rhs);
 
-	// magnetic kernels: the paramagnetic and diamagnetic terms enter through kinetic_pi_matrix (and,
-	// for a kernel without the paramagnetic term, through assemble_rhs); keep them zero here
-	// cut vector potential (bsh: S (B/2) Lz and the cut diamagnetic potential in diafac; mehler: kinetic_pi_matrix
-	// has the uncut (B/2) Lz, and lz_mo = (S-1) (B/2) Lz makes the Fock matrix and the energy those of the cut
-	// Hamiltonian that the iteration solves)
-	if (not mkernel) {
-		pot.lz_mo=0.5*B[2]*Lz<double_complex,3>(world,false)(rhs);
-		if (param.cut_vector_potential()) pot.lz_mo=cutA_S*pot.lz_mo;
-	} else if (param.cut_vector_potential()) {
-		pot.lz_mo=(cutA_S-1.0)*(0.5*B[2]*Lz<double_complex,3>(world,true)(rhs));	// as in assemble_rhs
-	}
-
-	if (not mkernel) pot.diamagnetic_mo=diafac->apply_potential(rhs);
+	// the paramagnetic and diamagnetic terms enter through kinetic_pi_matrix (and, for a kernel without the
+	// paramagnetic term, through assemble_rhs)
 	if (kernel_nemo()) pot.vbare_mo=truncate(potentialmanager->vnuclear()*rhs);
 
-	MADNESS_ASSERT(diafac->B_along_z(B));
 	// i U1.A F: symmetric gauge about r = 0 i (B/2)(x U1_y - y U1_x); Landau gauge of the kernel (A = (-B y, 0, 0))
 	// -i B y U1_x
-	if (mkernel and mkernel->gauge()==MagneticGauge::landau)
+	if (mkernel->gauge()==MagneticGauge::landau)
 		pot.zeeman_R_comm = double_complex(0.0,-1.0)*B[2]*(rvec[1]*ncf->U1(0))*rhs;
 	else
 		pot.zeeman_R_comm = double_complex(0.0,0.5)*B[2]*(rvec[0]* ncf->U1(1)-rvec[1]* ncf->U1(0))*rhs;
 
 	truncate(world,pot.vnuc_mo);
-	truncate(world,pot.lz_mo);
-	truncate(world,pot.diamagnetic_mo);
 	return pot;
 }
 
@@ -1246,8 +1028,6 @@ Znemo::potentials Znemo::compute_potentials(const std::vector<complex_function_3
 	truncate(world,pot.J_mo);
 	truncate(world,pot.K_mo);
 	truncate(world,pot.vnuc_mo);
-	truncate(world,pot.lz_mo);
-	truncate(world,pot.diamagnetic_mo);
 	potential_timer.end("compute_potentials");
 	return pot;
 };
@@ -1261,13 +1041,11 @@ Tensor<double_complex> Znemo::compute_vmat(const std::vector<complex_function_3d
 	// kernels with a correlation factor: the symmetric kinetic term contains U1.grad + i U1.A + U2 - V
 	const bool sym=kernel_nemo();
 	Tensor<double_complex> Vnucmat=matrix_inner(world,dia2mo,sym ? pot.vbare_mo : pot.vnuc_mo);
-	Tensor<double_complex> lzmat=matrix_inner(world,dia2mo,pot.lz_mo);
-	Tensor<double_complex> diamat=matrix_inner(world,dia2mo,pot.diamagnetic_mo);
 	Tensor<double_complex> Kmat=matrix_inner(world,dia2mo,pot.K_mo);
 	Tensor<double_complex> Jmat=matrix_inner(world,dia2mo,pot.J_mo);
 	Tensor<double_complex> ZRcom_mat=sym ? Tensor<double_complex>(mo.size(),mo.size()) : matrix_inner(world,dia2mo,pot.zeeman_R_comm);
 
-	Tensor<double_complex> vmat=Vnucmat+lzmat+diamat-Kmat+Jmat+ZRcom_mat;
+	Tensor<double_complex> vmat=Vnucmat-Kmat+Jmat+ZRcom_mat;
 	return vmat;
 };
 
@@ -1276,40 +1054,27 @@ std::vector<complex_function_3d>
 Znemo::compute_residuals(
 		const std::vector<complex_function_3d>& Vpsi,
 		const std::vector<complex_function_3d>& psi,
-		Tensor<double>& eps,
-		double levelshift) const {
+		Tensor<double>& eps) const {
 	timer residual_timer(world,print_info.print_timings());
 
 	double tol = FunctionDefaults < 3 > ::get_thresh();
 
-    std::vector<complex_function_3d> tmp;
-    if (mkernel) {
-    	// tmp = -(T_k - E)^{-1} Vpsi
-    	// G(E) needs E < |B|/2, and its range along B grows as 1/sqrt(2(|B|/2 - E)) (and with it the memory: at
-    	// B = 10, E = B/2 - 1e-3 exceeded 45 GB). An energy bound by at least 1e-3 is used as it is; one closer to
-    	// the threshold is no bound-state estimate (a guess) and is replaced by |B|/2 - 0.05 (decay length 3 bohr)
-    	const double bottom=mkernel->bottom();
-    	Tensor<double> E(eps.size());
-    	for (int i=0; i<eps.size(); ++i) E(i)=(eps(i)<bottom-1.e-3) ? eps(i) : bottom-0.05;
-    	if ((world.rank()==0) and (eps.size()>0) and (eps.max()>=bottom-1.e-3))
-    		print("kernel energies at the Landau threshold |B|/2 replaced by |B|/2 - 0.05:",eps,"->",E);
-    	for (int i=0; i<eps.size(); ++i) eps(i)=E(i);	// the update below starts from the energy used
-    	if ((world.rank()==0) and (print_info.print_convergence())) print("kernel energies",E);
-    	tmp=mkernel->apply(-1.0*Vpsi,E);
-    } else {
-    std::vector < std::shared_ptr<real_convolution_3d> > ops(psi.size());
-    for (int i=0; i<eps.size(); ++i) {
-    	ops[i]=std::shared_ptr<real_convolution_3d>(
-    			BSHOperatorPtr3D(world, sqrt(-2.*std::min(-0.05,eps(i)+levelshift)),
-    					get_calc_param().lo()*0.001, tol*0.001));
-    }
+    // tmp = -(T_k - E)^{-1} Vpsi
+    // G(E) needs E < |B|/2, and its range along B grows as 1/sqrt(2(|B|/2 - E)) (and with it the memory: at
+    // B = 10, E = B/2 - 1e-3 exceeded 45 GB). An energy bound by at least 1e-3 is used as it is; one closer to
+    // the threshold is no bound-state estimate (a guess) and is replaced by |B|/2 - 0.05 (decay length 3 bohr)
+    const double bottom=mkernel->bottom();
+    Tensor<double> E(eps.size());
+    for (int i=0; i<eps.size(); ++i) E(i)=(eps(i)<bottom-1.e-3) ? eps(i) : bottom-0.05;
+    if ((world.rank()==0) and (eps.size()>0) and (eps.max()>=bottom-1.e-3))
+    	print("kernel energies at the Landau threshold |B|/2 replaced by |B|/2 - 0.05:",eps,"->",E);
+    for (int i=0; i<eps.size(); ++i) eps(i)=E(i);	// the update below starts from the energy used
+    if ((world.rank()==0) and (print_info.print_convergence())) print("kernel energies",E);
+    const std::vector<complex_function_3d> tmp=mkernel->apply(-1.0*Vpsi,E);
 
-    tmp = apply(world,ops,-2.0*Vpsi-2.0*levelshift*psi);
-    }
-
-    // magnetic kernels: truncating the residual at thresh zeroes it (and the energy update below) before the
-    // fixed point is reached, at strong field by up to ~1e-3 Eh in a gauge-dependent way
-    const std::vector<complex_function_3d> res=mkernel ? truncate(psi-tmp,0.1*tol) : truncate(psi-tmp);
+    // truncating the residual at thresh zeroes it (and the energy update below) before the fixed point is
+    // reached, at strong field by up to ~1e-3 Eh in a gauge-dependent way
+    const std::vector<complex_function_3d> res=truncate(psi-tmp,0.1*tol);
     const std::vector<complex_function_3d> bra_res=make_bra(res);
 
     // update eps

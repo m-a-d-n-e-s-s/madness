@@ -25,7 +25,6 @@
 
 namespace madness {
 
-class Diamagnetic_potential_factor;
 
 
 
@@ -60,17 +59,11 @@ public:
 	/// ctor reading out the input file
     Nemo_complex_Parameters() {
         initialize<double>("physical_B",0.0);
-        initialize<double>("potential_radius",-1.0,"radius R_c of the potential cut about the gauge origin: "
-                "bsh: the diamagnetic potential flattens beyond it; with cut_vector_potential: the field is cut "
-                "beyond it (flux-conserving cut of A); <0: derived");
-        initialize<bool>("cut_vector_potential",false,"bsh, mehler: flux-conserving cut of the vector potential, "
-                "A -> S(rho) A with the field B erfc((rho-R_c)/width)/2 (default R_c: max nuclear rho + 6 l_B)");
-        initialize<double>("potential_cut_width",1.0,"cut_vector_potential: edge width in units of l_B = |B|^-1/2");
 
-        // magnetic Green's-function kernels (madness/mra/magnetic_kernels.md); the defaults keep the free BSH;
-        // the kernel parameters are in the magnetic_kernel block (MagneticKernelParameters)
-        initialize<std::string>("kernel","bsh","Green's function: bsh (free BSH, all magnetic terms on the right-hand side) "
-                "or a magnetic kernel: ft, chain_symmetric, chain_landau, mehler",{"bsh","ft","chain_symmetric","chain_landau","mehler"});
+        // magnetic Green's-function kernels (madness/mra/magnetic_kernels.md); the kernel parameters are in the
+        // magnetic_kernel block (MagneticKernelParameters)
+        initialize<std::string>("kernel","chain_symmetric","magnetic Green's function: ft, chain_symmetric, "
+                "chain_landau, mehler",{"ft","chain_symmetric","chain_landau","mehler"});
         initialize<std::vector<int> >("guess_lz",std::vector<int>(),"hcore guess: L_z of the occupied orbitals (alpha in "
                 "order, beta the first nbeta; B along a linear molecule only); empty: aufbau");
     }
@@ -84,49 +77,10 @@ public:
 		return std::string("complex");
 	}
 
-	/// @param[in]	nuclear_rho	largest distance of a nucleus from the field axis through the gauge origin
-	void set_derived_values(const double nuclear_rho=0.0) {
-		double pb=physical_B();
-		double remaining_B=fabs(pb);
-		double thresh=FunctionDefaults<3>::get_thresh()*0.1;
-
-		double wave_function_radius=2.0*sqrt(-log(thresh)/remaining_B);
-		double potential_radius=wave_function_radius*1.6;
-		double box_radius=wave_function_radius*1.33;
-		// cut of the vector potential: the field stays uniform over the molecule, with a margin of 6 l_B
-		if (cut_vector_potential()) potential_radius=nuclear_rho+6.0/sqrt(fabs(pb));
-
-		box_={box_radius,0.01};
-		set_derived_value("potential_radius",potential_radius);
-		double shift=physical_B();
-		if (cut_vector_potential() and kernel()=="bsh") {
-			// the free BSH needs E + levelshift < 0 for all orbitals, levelshift = shift - B/2: shift down by more
-			// than the largest cut potential, (B^2/8) (R_c + w)^2 (diamagnetic) + B/2 (exterior offset), plus 1
-			const double R_c=get<double>("potential_radius")+potential_cut_width();
-			shift=0.5*pb-(0.125*pb*pb*R_c*R_c+0.5*fabs(pb)+1.0);
-		}
-		shift_=shift;
-
-	}
-
-	/// level shift of the BSH iteration, derived in set_derived_values
-	double shift() const {return shift_;}
 	double physical_B() const {return get<double>("physical_b");}
-	/// radius and softness of the spherical damping box of the bsh iteration, derived in set_derived_values
-	std::vector<double> box() const {return box_;}
-	double potential_radius() const {return get<double>("potential_radius");}
-	bool cut_vector_potential() const {return get<bool>("cut_vector_potential");}
-	/// edge width of the cut of the vector potential in bohr
-	double potential_cut_width() const {return get<double>("potential_cut_width")/sqrt(fabs(physical_B()));}
 
 	std::string kernel() const {return get<std::string>("kernel");}
-	bool use_magnetic_kernel() const {return kernel()!="bsh";}
 	std::vector<int> guess_lz() const {return get<std::vector<int>>("guess_lz");}
-
-
-private:
-	double shift_=0.0;
-	std::vector<double> box_={1.0,0.01};
 };
 
 
@@ -136,8 +90,6 @@ class Znemo : public NemoBase, public QCPropertyInterface {
 	struct potentials {
 		potentials(World& world, const std::size_t nmo) {
 			vnuc_mo=zero_functions<double_complex,3>(world,nmo);
-			diamagnetic_mo=zero_functions<double_complex,3>(world,nmo);
-			lz_mo=zero_functions<double_complex,3>(world,nmo);
 			J_mo=zero_functions<double_complex,3>(world,nmo);
 			K_mo=zero_functions<double_complex,3>(world,nmo);
 			zeeman_R_comm=zero_functions<double_complex,3>(world,nmo);
@@ -148,8 +100,6 @@ class Znemo : public NemoBase, public QCPropertyInterface {
 		void transform(const Tensor<double_complex>& U) {
 			World& world=vnuc_mo[0].world();
 			vnuc_mo = ::madness::transform(world, vnuc_mo, U);
-			diamagnetic_mo = ::madness::transform(world, diamagnetic_mo, U);
-			lz_mo = ::madness::transform(world, lz_mo, U);
 			J_mo = ::madness::transform(world, J_mo, U);
 			K_mo = ::madness::transform(world, K_mo, U);
 			zeeman_R_comm = ::madness::transform(world, zeeman_R_comm, U);
@@ -158,8 +108,6 @@ class Znemo : public NemoBase, public QCPropertyInterface {
 
 
 		std::vector<complex_function_3d> vnuc_mo;
-		std::vector<complex_function_3d> diamagnetic_mo;
-		std::vector<complex_function_3d> lz_mo;
 		std::vector<complex_function_3d> J_mo;
 		std::vector<complex_function_3d> K_mo;
 		std::vector<complex_function_3d> zeeman_R_comm;
@@ -249,8 +197,6 @@ public:
 	Tensor<double> gradient() {
 		return gradient(mol.get_all_coords());
 	}
-
-	bool test() const;
 
 	const CalculationParameters& get_calc_param() const {return calc_param;};
 	Molecule& molecule() override {return mol;};
@@ -375,7 +321,7 @@ public:
 	}
 
 	double compute_energy(const std::vector<complex_function_3d>& amo, const potentials& apot,
-			const std::vector<complex_function_3d>& bmo, const potentials& bpot, const bool do_print, const bool no_confinement) const;
+			const std::vector<complex_function_3d>& bmo, const potentials& bpot, const bool do_print) const;
 
 	/// compute the potential operators applied on the orbitals
 	potentials compute_potentials(const std::vector<complex_function_3d>& mo,
@@ -389,8 +335,7 @@ public:
 	std::vector<complex_function_3d> compute_residuals(
 			const std::vector<complex_function_3d>& Vpsi,
 			const std::vector<complex_function_3d>& psi,
-			Tensor<double>& eps,
-			const double levelshift=0.0) const;
+			Tensor<double>& eps) const;
 
 	void canonicalize(std::vector<complex_function_3d>& amo,
 			std::vector<complex_function_3d>& vnemo,
@@ -438,7 +383,7 @@ public:
 	Tensor<double_complex> kinetic_pi_matrix(const std::vector<complex_function_3d>& mo) const;
 
 	/// magnetic kernels with a nuclear correlation factor: symmetric kinetic term, bare V in the Fock matrix
-	bool kernel_nemo() const {return mkernel and ncf and ncf->type()!=NuclearCorrelationFactor::None;}
+	bool kernel_nemo() const {return ncf and ncf->type()!=NuclearCorrelationFactor::None;}
 
 	/// pi_d f = -i d_d f + A_d f in the gauge of the kernel
 	std::vector<complex_function_3d> pi_apply(const std::vector<complex_function_3d>& f, const int axis) const;
@@ -467,9 +412,7 @@ protected:
     Nemo::NemoCalculationParameters nemo_param;
 	CalculationParameters calc_param;
 
-	std::shared_ptr<Diamagnetic_potential_factor> diafac;
-
-	/// magnetic Green's-function kernel (complex block: kernel != bsh), holding its parameters (magnetic_kernel
+	/// magnetic Green's-function kernel (complex block: kernel), holding its parameters (magnetic_kernel
 	/// block); rebuilt when the derived parameters change (recompute_factors_and_potentials, adapt_kernel_tmin)
 	std::shared_ptr<MagneticKernel> mkernel;
 	/// magnetic kernels: sum of the kernel energies - (J - K) + E_nuc, the energy of the original drivers
@@ -492,11 +435,6 @@ protected:
 	/// the orbital energies
 	Tensor<double> aeps, beps;
 
-	/// the spherical damping box
-	real_function_3d sbox;
-
-	/// cut_vector_potential: S(rho) of the cut vector potential A_c = S A (multiplies the paramagnetic term)
-	real_function_3d cutA_S;
 
 	/// the linear moments r={x,y,z}
 	std::vector<real_function_3d> rvec;
@@ -553,37 +491,9 @@ protected:
 
 	};
 
-	/// following Doucot Pascier 2005
-	struct landau_wave_function {
-
-		int m=0;
-		double l=0.0;		///< radius Eq. (29)
-		coord_3d origin={0.0,0.0,0.0};
-
-		landau_wave_function(const int m, const double B,
-				const coord_3d& origin={0.0,0.0,0.0})
-			: m(m), l(1.0/sqrt(B)), origin(origin) {
-			print("origin",origin);
-			MADNESS_ASSERT(m>=0);
-			MADNESS_ASSERT(B>0);
-		}
-
-		/// following Eq. (43)
-		double_complex operator()(const coord_3d& xyz1) const {
-			const coord_3d xyz=xyz1-origin;
-			const double_complex z(xyz[0],xyz[1]);			// z = x + iy
-			const double_complex zbar(xyz[0],-xyz[1]);
-
-			double z_confinement=exp(-0.01*xyz[2]*xyz[2]);		// make wf decay in z-direction
-			return std::pow(zbar/l,double(m)) * exp(-0.25*zbar*z/(l*l)) * z_confinement;
-		}
-	};
 
 	public:
 	void test_compute_current_density() const;
-
-public:
-	void test_landau_wave_function();
 };
 
 
