@@ -17,6 +17,31 @@
 
 namespace madness {
 
+namespace {
+/// true if the molecule is invariant under inversion through the origin (same charge at r and -r)
+bool centrosymmetric(const Molecule& mol) {
+	for (const Atom& a : mol.get_atoms()) {
+		bool found=false;
+		for (const Atom& b : mol.get_atoms()) {
+			if (a.q==b.q and (a.get_coords()+b.get_coords()).normf()<1.e-6) {found=true; break;}
+		}
+		if (not found) return false;
+	}
+	return true;
+}
+
+/// <f|P f>/<f|f> with P f(r) = f(-r): +1 gerade, -1 ungerade; the field Hamiltonian commutes with P in the
+/// symmetric and the Landau gauge (A(-r) = -A(r)), and the Landau phase e^{i(B/2)xy} is even
+Tensor<double> inversion_parity(const std::vector<complex_function_3d>& f) {
+	Tensor<double> p(long(f.size()));
+	for (std::size_t i=0; i<f.size(); ++i) {
+		const complex_function_3d pf=mirror(f[i],std::vector<long>{-1,-1,-1});
+		p(long(i))=real(inner(f[i],pf))/real(inner(f[i],f[i]));
+	}
+	return p;
+}
+}
+
 Znemo::Znemo(World& world, const commandlineparser& parser) : NemoBase(world), mol(world,parser), param(world,parser),
                     nemo_param(world,parser), calc_param(world,parser) {
 	calc_param.set_derived_value("k",9);
@@ -493,6 +518,10 @@ double Znemo::analyze() {
 	Tensor<double_complex> lzb_exp=inner(world,bmo,lzbmo);
 	print("< amo | lz | amo >",lza_exp);
 	print("< bmo | lz | bmo >",lzb_exp);
+	if (centrosymmetric(mol)) {
+		print("inversion parity <P> amo (g +1, u -1)",inversion_parity(amo));
+		print("inversion parity <P> bmo (g +1, u -1)",inversion_parity(bmo));
+	}
 
     std::vector<real_function_3d> A=compute_magnetic_vector_potential(world,B);
 
@@ -884,8 +913,11 @@ public:
 std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> >
 Znemo::hcore_guess() const {
 
-	// basis: the AOs of aobasis and, in a field, the s and p_{-sgn B} Slater functions e^{-sqrt(2) Z r},
-	// (x - i sgn(B) y) e^{-sqrt(2) Z r} of each nucleus; all magnetically translated and Landau-squeezed.
+	// basis: the AOs of aobasis and, in a field, the s and p_{-sgn B} Slater functions e^{-kappa r},
+	// (x - i sgn(B) y) e^{-kappa r} of each nucleus, kappa = sqrt(2) Z times each guess_slater_scale (the field
+	// compresses the atom along B: with sqrt(2) Z alone the guess is too diffuse at |B| ~ 100, its orbital
+	// energies lie above |B|/2 and pi_u/pi_g of H2 are not resolved); all magnetically translated and
+	// Landau-squeezed.
 	// The Hamiltonian is the one-electron part of the Fock matrix of the solver (kernel gauge).
 	const double Bz=param.physical_B();
 	const double sgn=(Bz<0.0) ? -1.0 : 1.0;
@@ -900,12 +932,14 @@ Znemo::hcore_guess() const {
 	if (Bz!=0.0) {
 		for (const Atom& a : mol.get_atoms()) {
 			const coord_3d A=a.get_coords();
-			const double kap=std::sqrt(2.0)*a.q;
-			auto s=[A,kap](const coord_3d& r) {return double_complex(std::exp(-kap*(r-A).normf()),0.0);};
-			phi.push_back(s);
-			phi.push_back([A,kap,sgn,s](const coord_3d& r) {return double_complex(r[0]-A[0],-sgn*(r[1]-A[1]))*s(r);});
-			center.push_back(A);
-			center.push_back(A);
+			for (const double scale : param.guess_slater_scale()) {
+				const double kap=std::sqrt(2.0)*a.q*scale;
+				auto s=[A,kap](const coord_3d& r) {return double_complex(std::exp(-kap*(r-A).normf()),0.0);};
+				phi.push_back(s);
+				phi.push_back([A,sgn,s](const coord_3d& r) {return double_complex(r[0]-A[0],-sgn*(r[1]-A[1]))*s(r);});
+				center.push_back(A);
+				center.push_back(A);
+			}
 		}
 	}
 	auto project=[&](const bool landau_phase) {
@@ -952,6 +986,20 @@ Znemo::hcore_guess() const {
 		}
 	}
 
+	// inversion parity <P> of the eigenvectors (centrosymmetric molecules only)
+	const bool have_parity=centrosymmetric(mol);
+	Tensor<double> parity(nmo);
+	if (have_parity) {
+		std::vector<complex_function_3d> paos(aos.size());
+		for (std::size_t i=0; i<aos.size(); ++i) paos[i]=mirror(aos[i],std::vector<long>{-1,-1,-1});
+		const Tensor<double_complex> Pmat=matrix_inner(world,aos,paos);
+		const Tensor<double_complex> Smat=matrix_inner(world,aos,aos);
+		for (long k=0; k<nmo; ++k) {
+			const Tensor<double_complex> c=copy(C(_,k)), cc=conj(c);
+			parity(k)=real(cc.trace(inner(Pmat,c)))/real(cc.trace(inner(Smat,c)));
+		}
+	}
+
 	// occupied orbitals: aufbau, or the lowest with the requested L_z
 	const long nocc=std::max(get_calc_param().nalpha(),get_calc_param().nbeta());
 	MADNESS_CHECK_THROW(nocc<=nmo,"hcore guess: more occupied orbitals than basis functions");
@@ -970,10 +1018,11 @@ Znemo::hcore_guess() const {
 	}
 	if (world.rank()==0) {
 		print("hcore guess:",nbf,"functions,",nmo,"after canonical orthogonalization (aobasis",get_calc_param().aobasis()+")");
-		print("     k      energy        <Lz>");
-		for (long k=0; k<std::min(nmo,nocc+4); ++k) {
+		print(have_parity ? "     k      energy        <Lz>       <P>" : "     k      energy        <Lz>");
+		for (long k=0; k<std::min(nmo,nocc+6); ++k) {
 			const bool occ=std::find(pick.begin(),pick.end(),k)!=pick.end();
-			printf("  %4ld  %12.6f  %8.4f  %s\n",k,e(k),lzexp(k),occ ? "occupied" : "");
+			if (have_parity) printf("  %4ld  %12.6f  %8.4f  %8.4f  %s\n",k,e(k),lzexp(k),parity(k),occ ? "occupied" : "");
+			else printf("  %4ld  %12.6f  %8.4f  %s\n",k,e(k),lzexp(k),occ ? "occupied" : "");
 		}
 	}
 

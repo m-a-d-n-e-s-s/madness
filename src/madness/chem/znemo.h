@@ -66,6 +66,9 @@ public:
                 "chain_landau, mehler",{"fourier","chain_symmetric","chain_landau","mehler"});
         initialize<std::vector<int> >("guess_lz",std::vector<int>(),"hcore guess: L_z of the occupied orbitals (alpha in "
                 "order, beta the first nbeta; B along a linear molecule only); empty: aufbau");
+        initialize<std::vector<double> >("guess_slater_scale",{1.0,2.0,4.0},"hcore guess in a field: exponents "
+                "of the s and p_{-sgn B} Slater functions per nucleus, in units of sqrt(2) Z (the field compresses "
+                "the atom along B: H at B = 100 decays as e^{-2.75 |z|})");
     }
 
 	Nemo_complex_Parameters(World& world, const commandlineparser& parser) : Nemo_complex_Parameters() {
@@ -81,6 +84,7 @@ public:
 
 	std::string kernel() const {return get<std::string>("kernel");}
 	std::vector<int> guess_lz() const {return get<std::vector<int>>("guess_lz");}
+	std::vector<double> guess_slater_scale() const {return get<std::vector<double>>("guess_slater_scale");}
 };
 
 
